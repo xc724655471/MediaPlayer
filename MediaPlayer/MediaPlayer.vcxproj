@@ -149,11 +149,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="FFmpegDecoder.h" />
+    <ClInclude Include="RTMPReceiver.h" />
+    <ClInclude Include="SDLPlayer.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="FFmpegDecoder.cpp" />
     <ClCompile Include="MediaPlayer.cpp" />
+    <ClCompile Include="RTMPReceiver.cpp" />
+    <ClCompile Include="SDLPlayer.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
