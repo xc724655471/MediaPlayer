@@ -102,7 +102,7 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;__STDC_LIMIT_MACROS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>D:\opencv\build\include;D:\opencv\build\include\opencv2;D:\opencv\build\include\opencv;include</AdditionalIncludeDirectories>
     </ClCompile>
@@ -150,6 +150,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="FFmpegDecoder.h" />
+    <ClInclude Include="MyHeader.h" />
     <ClInclude Include="RTMPReceiver.h" />
     <ClInclude Include="SDLPlayer.h" />
     <ClInclude Include="stdafx.h" />

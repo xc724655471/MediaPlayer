@@ -4,7 +4,10 @@
 
 
 
+
 SDLPlayer * player = new SDLPlayer;
+//vector <DecodePacket*> p;
+
 FFmpegDecoder::FFmpegDecoder()
 {
 	//const AVCodec *codec;
@@ -106,6 +109,7 @@ bool FFmpegDecoder::DecodeOnePacket(int cur_size, uint8_t *cur_ptr)
 
 
 				player->SDLPlayerInit(cctx->width, cctx->height);
+				std::thread * threadA = new std::thread(&SDLPlayer::run, player);//用类A的run函数开启一个线程
 
 				imgCtx = sws_getContext(cctx->width, cctx->height, cctx->pix_fmt, cctx->width, cctx->height, AV_PIX_FMT_YUV420P,
 					SWS_BICUBIC, NULL, NULL, NULL);
@@ -128,7 +132,21 @@ bool FFmpegDecoder::DecodeOnePacket(int cur_size, uint8_t *cur_ptr)
 				sws_scale(imgCtx, frame->data, frame->linesize, 0, cctx->height, yuv->data, yuv->linesize);
 
 				float time = cctx->time_base.den / cctx->time_base.num;
-				player->Play(yuv->data[0], yuv->linesize[0], time);
+
+				PlayPacket * temppacket = new PlayPacket;
+				temppacket->yuvdate = yuv->data[0];
+				temppacket->yuvlinesize = yuv->linesize[0];
+				temppacket->time = time;
+
+
+				//player->playpack.push(temppacket);
+
+				player->ReceiveDataFromOtherThread(temppacket);
+				player->bisPlay = true;
+
+				//player->Play(yuv->data[0], yuv->linesize[0], time);
+				//player->Play(temppacket);
+				delete temppacket;
 			}
 
 			

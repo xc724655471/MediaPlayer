@@ -1,6 +1,9 @@
 #pragma once
 
 
+#include <vector>
+#include <queue>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,6 +24,12 @@ extern "C" {
 #pragma comment(lib, "avutil.lib")	
 #pragma comment(lib ,"swscale.lib")
 
+typedef struct DecodePacket
+{
+	//int type;
+	int size;
+	unsigned char *cur_ptr;
+}DecodePacket;
 
 class FFmpegDecoder
 {
@@ -40,6 +49,11 @@ public:
 	struct SwsContext *imgCtx = NULL;
 	bool bIsInit;
 	int vsize;
+
+	//vector<DecodePacket*> a;
+	//std::vector <DecodePacket*> datapacket;
+	std::queue<DecodePacket * > datapacket;
+
 public:
 	bool DecoderInit();
 	bool DecodeOnePacket(int cur_size, uint8_t *cur_ptr);

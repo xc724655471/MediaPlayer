@@ -108,11 +108,14 @@ bool RTMPReceiver::RTMPReceiverStart()
 	{
 		if (RTMPPacket_IsReady(&pc))	//是否读取完毕。((a)->m_nBytesRead == (a)->m_nBodySize)  
 		{
+			
 			if (!pc.m_nBodySize)
 				continue;
 			if (pc.m_packetType == RTMP_PACKET_TYPE_VIDEO && RTMP_ClientPacket(rtmp, &pc))
 			{
 
+
+				
 				unsigned char framedata[1024 * 100];
 				int m_currentPos = 0;
 
@@ -173,6 +176,13 @@ bool RTMPReceiver::RTMPReceiverStart()
 
 
 						//decode////////////////////////////////////////
+
+						//DecodePacket * tempdata = new DecodePacket;
+						//tempdata->cur_ptr = cur_ptr;
+						//tempdata->size = cur_size;
+						//decoder->datapacket.push(tempdata);
+
+
 						cur_size = m_currentPos;
 						cur_ptr = framedata;
 						decoder->DecodeOnePacket(cur_size, cur_ptr);
@@ -274,6 +284,7 @@ bool RTMPReceiver::RTMPReceiverStart()
 			RTMPPacket_Free(&pc);
 		}
 	}
+	printf("failed Read one packet");
 	return false;
 }
 

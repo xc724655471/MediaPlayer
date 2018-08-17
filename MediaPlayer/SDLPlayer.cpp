@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "SDLPlayer.h"
-#
+
+
+#include <iostream>
+#include <thread>
 
 SDLPlayer::SDLPlayer()
 {
@@ -9,6 +12,7 @@ SDLPlayer::SDLPlayer()
 	 ste = NULL;
 	 srect = { 0 };
 	 buf = NULL;
+	 bisPlay = false;
 }
 
 
@@ -97,6 +101,72 @@ void SDLPlayer::Play(uint8_t *yuvdate, int yuvlinesize, float time)
 	{
 		//break;
 	}
+}
+
+void SDLPlayer::Play(PlayPacket * pakcet)
+{
+	SDL_WaitEvent(&event);
+	if (event.type == SFM_REFRESH_EVENT)
+	{
+		//SDL_UpdateTexture(ste, &srect, yuv->data[0], yuv->linesize[0]);
+		SDL_UpdateTexture(ste, &srect, pakcet->yuvdate, pakcet->yuvlinesize);
+		SDL_RenderClear(sr);
+		SDL_RenderCopy(sr, ste, NULL, NULL);
+		SDL_RenderPresent(sr);
+		//延时40ms
+		SDL_Delay(1000 / pakcet->time);
+	}
+	else if (event.type == SDL_QUIT)
+	{
+		thread_exit = 1;
+	}
+	else if (event.type == SFM_BREAK_EVENT)
+	{
+		//break;
+	}
+}
+
+void SDLPlayer::ReceiveDataFromOtherThread(PlayPacket * packet)
+{
+	std::unique_lock<std::mutex> lock(dataCacheMutex);
+	playpack.push(packet);//其他线程往缓存区放数据
+	cond_.notify_one();
+}
+
+void SDLPlayer::run()
+{
+	while (1)
+	{
+		{
+			std::unique_lock<std::mutex> lock(dataCacheMutex);
+			while (playpack.size() < 0)
+				cond_.wait(lock);
+
+			if (!playpack.empty())
+			{	
+				m_pakcet = playpack.back();//本线程从缓存区读取数据
+
+
+
+				//if (bisPlay)
+				//{
+				//	Play(m_pakcet);
+				//	bisPlay = false;
+				//	printf("paly");
+				//}
+				//Play(m_pakcet);
+				playpack.pop();
+				
+
+			}
+
+		}
+		//...
+		//	process(pakcet, ....);
+
+
+	}
+
 }
 
 
