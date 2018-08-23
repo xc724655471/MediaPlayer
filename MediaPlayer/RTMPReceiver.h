@@ -1,8 +1,10 @@
 #pragma once
-#include "librtmp/rtmp_sys.h"
-#include "librtmp/log.h"
+//#include "librtmp/rtmp_sys.h"
+//#include "librtmp/log.h"
+#include "rtmp_sys.h"
+#include "log.h"
 
-#pragma comment(lib, "librtmp.lib")
+//#pragma comment(lib, "librtmp.lib")
 #ifdef WIN32
 #pragma comment(lib,"WS2_32.lib")
 #pragma comment(lib,"winmm.lib")
@@ -14,7 +16,7 @@ public:
 	RTMPReceiver();
 	~RTMPReceiver();
 public:
-	bool RTMPReceiverInit(char * url,bool bWriteFile=false);
+	bool RTMPReceiverInit(char * url,bool bWriteFile=false, int type=1);
 	bool RTMPReceiverStart();
 	int InitSockets();
 	void CleanupSockets();
@@ -38,5 +40,6 @@ public:
 	int cur_size;
 	RTMP *rtmp ;
 	bool m_IsWriteFile;
+	int StreamType;//1 h265  0 h264
 };
 

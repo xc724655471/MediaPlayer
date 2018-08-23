@@ -55,7 +55,7 @@ public:
 	std::queue<DecodePacket * > datapacket;
 
 public:
-	bool DecoderInit();
+	bool DecoderInit(int streamtype);
 	bool DecodeOnePacket(int cur_size, uint8_t *cur_ptr);
 };
 

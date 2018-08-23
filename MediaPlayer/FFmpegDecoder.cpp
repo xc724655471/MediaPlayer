@@ -16,7 +16,7 @@ FFmpegDecoder::FFmpegDecoder()
 	frame_count=0;
 	//AVFrame *frame;
 	//AVPacket  avpkt;
-	AVPacket  *avpkt;
+	//AVPacket  *avpkt;
 	yuv = NULL;
 
 	imgCtx = NULL;
@@ -30,13 +30,23 @@ FFmpegDecoder::~FFmpegDecoder()
 {
 }
 
-bool FFmpegDecoder::DecoderInit()
+bool FFmpegDecoder::DecoderInit(int streamtype)
 {
 	avcodec_register_all();
 
 	av_init_packet(&avpkt);
 
-	codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+	if (streamtype)
+	{
+		codec = avcodec_find_decoder(AV_CODEC_ID_H265);
+	}
+	else
+	{
+		codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+	}
+	//codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+	//codec = avcodec_find_decoder(AV_CODEC_ID_H265);
+	//AV_CODEC_ID_H265
 	if (!codec) {
 		fprintf(stderr, "Codec not found\n");
 		exit(1);
@@ -47,8 +57,16 @@ bool FFmpegDecoder::DecoderInit()
 		exit(1);
 	}
 
-
-	pCodecParserCtx = av_parser_init(AV_CODEC_ID_H264); //初始化 AVCodecParserContext
+	if (streamtype)
+	{
+		pCodecParserCtx = av_parser_init(AV_CODEC_ID_H265); //初始化 AVCodecParserContext
+	}
+	else
+	{
+		pCodecParserCtx = av_parser_init(AV_CODEC_ID_H264); //初始化 AVCodecParserContext
+	}
+	
+	
 	if (!pCodecParserCtx) {
 		printf("Could not allocate video parser context\n");
 		return -1;
@@ -109,7 +127,7 @@ bool FFmpegDecoder::DecodeOnePacket(int cur_size, uint8_t *cur_ptr)
 
 
 				player->SDLPlayerInit(cctx->width, cctx->height);
-				std::thread * threadA = new std::thread(&SDLPlayer::run, player);//用类A的run函数开启一个线程
+				//std::thread * threadA = new std::thread(&SDLPlayer::run, player);//用类A的run函数开启一个线程
 
 				imgCtx = sws_getContext(cctx->width, cctx->height, cctx->pix_fmt, cctx->width, cctx->height, AV_PIX_FMT_YUV420P,
 					SWS_BICUBIC, NULL, NULL, NULL);
@@ -131,7 +149,8 @@ bool FFmpegDecoder::DecodeOnePacket(int cur_size, uint8_t *cur_ptr)
 			{
 				sws_scale(imgCtx, frame->data, frame->linesize, 0, cctx->height, yuv->data, yuv->linesize);
 
-				float time = cctx->time_base.den / cctx->time_base.num;
+				//float time = cctx->time_base.den / cctx->time_base.num;
+				float time = 20;
 
 				PlayPacket * temppacket = new PlayPacket;
 				temppacket->yuvdate = yuv->data[0];
@@ -141,11 +160,11 @@ bool FFmpegDecoder::DecodeOnePacket(int cur_size, uint8_t *cur_ptr)
 
 				//player->playpack.push(temppacket);
 
-				player->ReceiveDataFromOtherThread(temppacket);
-				player->bisPlay = true;
+				//player->ReceiveDataFromOtherThread(temppacket);
+				//player->bisPlay = true;
 
 				//player->Play(yuv->data[0], yuv->linesize[0], time);
-				//player->Play(temppacket);
+				player->Play(temppacket);
 				delete temppacket;
 			}
 
