@@ -133,6 +133,7 @@ bool RTMPReceiver::RTMPReceiverStart()
 					bStartWrite = true;
 					bIsFirst = false;
 				}
+				//提交用
 
 				if (bStartWrite)
 				{
