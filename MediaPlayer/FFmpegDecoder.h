@@ -22,6 +22,8 @@ extern "C" {
 #pragma comment(lib ,"swscale.lib")
 
 
+
+
 class FFmpegDecoder
 {
 public:
@@ -41,7 +43,9 @@ public:
 	bool bIsInit;
 	int vsize;
 public:
-	bool DecoderInit();
+	bool DecoderInit(int streamtype);
 	bool DecodeOnePacket(int cur_size, uint8_t *cur_ptr);
+	int StreamType;
+
 };
 

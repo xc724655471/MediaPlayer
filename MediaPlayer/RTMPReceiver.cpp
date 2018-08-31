@@ -22,8 +22,9 @@ RTMPReceiver::RTMPReceiver()
 	 bIsInit = false;
 	//uint8_t *cur_ptr;
 	 cur_size=0;
-	 rtmp = RTMP_Alloc();
+	 m_pRtmp = RTMP_Alloc();
 	 m_IsWriteFile = false;
+	 StreamType = 1;
 }
 
 
@@ -36,18 +37,19 @@ RTMPReceiver::~RTMPReceiver()
 
 	}
 
-	if (rtmp)
+	if (m_pRtmp)
 	{
-		RTMP_Close(rtmp);
-		RTMP_Free(rtmp);
+		RTMP_Close(m_pRtmp);
+		RTMP_Free(m_pRtmp);
 		CleanupSockets();
-		rtmp = NULL;
+		m_pRtmp = NULL;
 	}
 
 }
 
-bool RTMPReceiver::RTMPReceiverInit(char * url, bool bWriteFile)
+bool RTMPReceiver::RTMPReceiverInit(char * url, bool bWriteFile, int streamtype)
 {
+	StreamType = streamtype;
 	m_IsWriteFile = bWriteFile;
 	InitSockets();
 
@@ -62,55 +64,58 @@ bool RTMPReceiver::RTMPReceiverInit(char * url, bool bWriteFile)
 		}
 	}
 	//RTMP *rtmp = RTMP_Alloc();
-	RTMP_Init(rtmp);
+	RTMP_Init(m_pRtmp);
 
 	//set connection timeout,default 30s
-	rtmp->Link.timeout = 30;
+	m_pRtmp->Link.timeout = 30;
 
-	if (!RTMP_SetupURL(rtmp, url))
+	if (!RTMP_SetupURL(m_pRtmp, url))
 	{
 		RTMP_Log(RTMP_LOGERROR, "SetupURL Err\n");
-		RTMP_Free(rtmp);
+		RTMP_Free(m_pRtmp);
 		CleanupSockets();
 		return -1;
 	}
 	if (bLiveStream) {
-		rtmp->Link.lFlags |= RTMP_LF_LIVE;
+		m_pRtmp->Link.lFlags |= RTMP_LF_LIVE;
 	}
 
 	//1hour
 	//RTMP_SetBufferMS(rtmp, 3600 * 1000);
 	//10 minute
-	RTMP_SetBufferMS(rtmp, 600 * 1000);
+	RTMP_SetBufferMS(m_pRtmp, 600 * 1000);
 
-	if (!RTMP_Connect(rtmp, NULL)) {
+	if (!RTMP_Connect(m_pRtmp, NULL)) {
 		RTMP_Log(RTMP_LOGERROR, "Connect Err\n");
-		RTMP_Free(rtmp);
+		RTMP_Free(m_pRtmp);
 		CleanupSockets();
 		return -1;
 	}
 
-	if (!RTMP_ConnectStream(rtmp, 0)) {
+	if (!RTMP_ConnectStream(m_pRtmp, 0)) {
 		RTMP_Log(RTMP_LOGERROR, "ConnectStream Err\n");
-		RTMP_Close(rtmp);
-		RTMP_Free(rtmp);
+		RTMP_Close(m_pRtmp);
+		RTMP_Free(m_pRtmp);
 		CleanupSockets();
 		return -1;
 	}
 }
 
+
+
+
 bool RTMPReceiver::RTMPReceiverStart()
 {
 	FFmpegDecoder * decoder = new FFmpegDecoder();
-	decoder->DecoderInit();
+	decoder->DecoderInit(StreamType);
 
-	while (RTMP_ReadPacket(rtmp, &pc))
+	while (RTMP_ReadPacket(m_pRtmp, &pc))
 	{
 		if (RTMPPacket_IsReady(&pc))	//是否读取完毕。((a)->m_nBytesRead == (a)->m_nBodySize)  
 		{
 			if (!pc.m_nBodySize)
 				continue;
-			if (pc.m_packetType == RTMP_PACKET_TYPE_VIDEO && RTMP_ClientPacket(rtmp, &pc))
+			if (pc.m_packetType == RTMP_PACKET_TYPE_VIDEO && RTMP_ClientPacket(m_pRtmp, &pc))
 			{
 
 				unsigned char framedata[1024 * 100];
@@ -120,14 +125,29 @@ bool RTMPReceiver::RTMPReceiverStart()
 				nAVCPacketType = pc.m_body[1];
 				data = pc.m_body;
 				bool bIsKeyFrame = false;
-				if (result == 0x17)//I frame
+				if (StreamType)
 				{
-					bIsKeyFrame = true;
+					if (result == 0x1C)//I frame
+					{
+						bIsKeyFrame = true;
+					}
+					else if (result == 0x2C)
+					{
+						bIsKeyFrame = false;
+					}
 				}
-				else if (result == 0x27)
+				else
 				{
-					bIsKeyFrame = false;
+					if (result == 0x17)//I frame
+					{
+						bIsKeyFrame = true;
+					}
+					else if (result == 0x27)
+					{
+						bIsKeyFrame = false;
+					}
 				}
+
 				if (bIsKeyFrame&&bIsFirst)
 				{
 					bStartWrite = true;
@@ -139,76 +159,159 @@ bool RTMPReceiver::RTMPReceiverStart()
 				{
 					if (nAVCPacketType == 0)//AVCSequence Header
 					{
-
 						//AVCsequence header
-						//Access to SPS
-						int spsnum = data[10] & 0x1f;
-						int number_sps = 11;
-						int count_sps = 1;
-						while (count_sps <= spsnum)
+						if (StreamType)
 						{
-							int spslen = (data[number_sps] & 0x000000FF) << 8 | (data[number_sps + 1] & 0x000000FF);
-							number_sps += 2;
-							//fwrite(start_code, 1, 4, fp);
 
-							memcpy(framedata + m_currentPos, start_code, 4);
-							m_currentPos += 4;
-
-							//fwrite(data + number_sps, 1, spslen, fp);
-
-							memcpy(framedata + m_currentPos, (data + number_sps), spslen);
-
-							if (m_IsWriteFile)
+							//Access to VPS
+							int vpsnum = data[10] & 0x1f;
+							int number_vps = 11;
+							int count_vps = 1;
+							while (count_vps <= vpsnum)
 							{
-								fwrite(start_code, 1, 4, fp);
-								fwrite(data + number_sps, 1, spslen, fp);
+								int vpslen = (data[number_vps] & 0x000000FF) << 8 | (data[number_vps + 1] & 0x000000FF);
+								number_vps += 2;
+
+								memcpy(framedata + m_currentPos, start_code, 4);
+								m_currentPos += 4;
+
+								memcpy(framedata + m_currentPos, (data + number_vps), vpslen);
+
+								if (m_IsWriteFile)
+								{
+									fwrite(start_code, 1, 4, fp);
+									fwrite(data + number_vps, 1, vpslen, fp);
+								}
+
+
+								number_vps +=vpslen;
+
+								m_currentPos += vpslen;
+
+								count_vps++;
 							}
 
-
-							number_sps += spslen;
-
-							m_currentPos += spslen;
-
-							count_sps++;
-						}
-
-
-						//decode////////////////////////////////////////
-						cur_size = m_currentPos;
-						cur_ptr = framedata;
-						decoder->DecodeOnePacket(cur_size, cur_ptr);
-						//decode////////////////////////////////////////////////////////////////
-
-
-						//Get PPS
-						int ppsnum = data[number_sps] & 0x1f;
-						int number_pps = number_sps + 1;
-						int count_pps = 1;
-						while (count_pps <= ppsnum)
-						{
-							int ppslen = (data[number_pps] & 0x000000FF) << 8 | data[number_pps + 1] & 0x000000FF;
-							number_pps += 2;
-							//fwrite(start_code, 1, 4, fp);
-
-							memcpy(framedata + m_currentPos, start_code, 4);
-							m_currentPos += 4;
-
-							//fwrite(data + number_pps, 1, ppslen, fp);
-							memcpy(framedata + m_currentPos, (data + number_pps), ppslen);
-
-
-							if (m_IsWriteFile)
+							//Access to SPS
+							int spsnum = data[number_vps] & 0x1f;
+							int number_sps = number_vps + 1;
+							int count_sps = 1;
+							while (count_sps <= spsnum)
 							{
-								fwrite(start_code, 1, 4, fp);
-								fwrite(data + number_pps, 1, ppslen, fp);
+								int spslen = (data[number_sps] & 0x000000FF) << 8 | (data[number_sps + 1] & 0x000000FF);
+								number_sps += 2;
+
+								memcpy(framedata + m_currentPos, start_code, 4);
+								m_currentPos += 4;
+
+								memcpy(framedata + m_currentPos, (data + number_sps), spslen);
+
+								if (m_IsWriteFile)
+								{
+									fwrite(start_code, 1, 4, fp);
+									fwrite(data + number_sps, 1, spslen, fp);
+								}
+
+
+								number_sps += spslen;
+
+								m_currentPos += spslen;
+
+								count_sps++;
 							}
 
-							number_pps += ppslen;
+							//Get PPS
+							int ppsnum = data[number_sps] & 0x1f;
+							int number_pps = number_sps + 1;
+							int count_pps = 1;
+							while (count_pps <= ppsnum)
+							{
+								int ppslen = (data[number_pps] & 0x000000FF) << 8 | data[number_pps + 1] & 0x000000FF;
+								number_pps += 2;
+								//fwrite(start_code, 1, 4, fp);
 
-							m_currentPos += ppslen;
+								memcpy(framedata + m_currentPos, start_code, 4);
+								m_currentPos += 4;
 
-							count_pps++;
+								//fwrite(data + number_pps, 1, ppslen, fp);
+								memcpy(framedata + m_currentPos, (data + number_pps), ppslen);
+
+
+								if (m_IsWriteFile)
+								{
+									fwrite(start_code, 1, 4, fp);
+									fwrite(data + number_pps, 1, ppslen, fp);
+								}
+
+								number_pps += ppslen;
+
+								m_currentPos += ppslen;
+
+								count_pps++;
+							}
+						} 
+						else
+						{
+							//Access to SPS
+							int spsnum = data[10] & 0x1f;
+							int number_sps = 11;
+							int count_sps = 1;
+							while (count_sps <= spsnum)
+							{
+								int spslen = (data[number_sps] & 0x000000FF) << 8 | (data[number_sps + 1] & 0x000000FF);
+								number_sps += 2;
+
+								memcpy(framedata + m_currentPos, start_code, 4);
+								m_currentPos += 4;
+
+								memcpy(framedata + m_currentPos, (data + number_sps), spslen);
+
+								if (m_IsWriteFile)
+								{
+									fwrite(start_code, 1, 4, fp);
+									fwrite(data + number_sps, 1, spslen, fp);
+								}
+
+
+								number_sps += spslen;
+
+								m_currentPos += spslen;
+
+								count_sps++;
+							}
+
+							//Get PPS
+							int ppsnum = data[number_sps] & 0x1f;
+							int number_pps = number_sps + 1;
+							int count_pps = 1;
+							while (count_pps <= ppsnum)
+							{
+								int ppslen = (data[number_pps] & 0x000000FF) << 8 | data[number_pps + 1] & 0x000000FF;
+								number_pps += 2;
+								//fwrite(start_code, 1, 4, fp);
+
+								memcpy(framedata + m_currentPos, start_code, 4);
+								m_currentPos += 4;
+
+								//fwrite(data + number_pps, 1, ppslen, fp);
+								memcpy(framedata + m_currentPos, (data + number_pps), ppslen);
+
+
+								if (m_IsWriteFile)
+								{
+									fwrite(start_code, 1, 4, fp);
+									fwrite(data + number_pps, 1, ppslen, fp);
+								}
+
+								number_pps += ppslen;
+
+								m_currentPos += ppslen;
+
+								count_pps++;
+							}
 						}
+
+						
+
 						//decode////////////////////////////////////////
 						cur_size = m_currentPos;
 						cur_ptr = framedata;
@@ -227,13 +330,10 @@ bool RTMPReceiver::RTMPReceiverStart()
 							len = (data[num] & 0x000000FF) << 24 | (data[num + 1] & 0x000000FF) << 16 | (data[num + 2] & 0x000000FF) << 8 | data[num + 3] & 0x000000FF;
 							num = num + 4;
 
-							//fwrite(start_code, 1, 4, fp);
 							memcpy(framedata + m_currentPos, start_code, 4);
 							m_currentPos += 4;
 
-							//fwrite(data + num, 1, len, fp);
 							memcpy(framedata + m_currentPos, (data + num), len);
-
 							if (m_IsWriteFile)
 							{
 								fwrite(start_code, 1, 4, fp);
@@ -243,11 +343,9 @@ bool RTMPReceiver::RTMPReceiverStart()
 							m_currentPos += len;
 						}
 						//decode////////////////////////////////////////
-
 						cur_size = m_currentPos;
 						cur_ptr = framedata;
 						decoder->DecodeOnePacket(cur_size, cur_ptr);
-
 						//decode////////////////////////////////////////////////////////////////
 
 					}
@@ -258,7 +356,7 @@ bool RTMPReceiver::RTMPReceiverStart()
 				}
 
 			}
-			else if (pc.m_packetType == RTMP_PACKET_TYPE_INFO && RTMP_ClientPacket(rtmp, &pc))
+			else if (pc.m_packetType == RTMP_PACKET_TYPE_INFO && RTMP_ClientPacket(m_pRtmp, &pc))
 			{
 				int nVideoCodecId = 0;
 				int nVideoWidth = 1280;
@@ -269,7 +367,11 @@ bool RTMPReceiver::RTMPReceiverStart()
 				int nAudioSampleSize = 0;
 				bool bStereo = false;			//立体声
 				int nFileSize = 0;
-				ParseScriptTag(pc.m_body, pc.m_nBodySize, nVideoCodecId, nVideoWidth, nVideoHeight, nVideoFrameRate, nAudioCodecId, nAudioSampleRate, nAudioSampleSize, bStereo, nFileSize);
+				if (!StreamType)
+				{
+					ParseScriptTag(pc.m_body, pc.m_nBodySize, nVideoCodecId, nVideoWidth, nVideoHeight, nVideoFrameRate, nAudioCodecId, nAudioSampleRate, nAudioSampleSize, bStereo, nFileSize);
+				}
+				
 				int k = 0;
 			}
 			RTMPPacket_Free(&pc);
